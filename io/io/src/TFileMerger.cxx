@@ -42,6 +42,7 @@ to be merged, like the standalone hadd program.
 #include "TVirtualMutex.h"
 #include <vector>
 #include <set>
+#include <chrono>
 
 #ifdef WIN32
 // For _getmaxstdio
@@ -401,7 +402,7 @@ Bool_t TFileMerger::MergeRecursive(TDirectory *target, TList *sourcelist, Int_t 
       arr->SetOwner(kFALSE);
       for (Int_t iname=0; iname<arr->GetEntriesFast(); iname++){
          allNames.Add(arr->At(iname));
-         callNames.push_back( (TObjString*)arr->At(iname));
+         callNames.push_back( (TString*)arr->At(iname));
       }
       
       delete arr;
@@ -435,6 +436,7 @@ Bool_t TFileMerger::MergeRecursive(TDirectory *target, TList *sourcelist, Int_t 
          TKey *key;
          TString oldkeyname;
          std::set<int> skip;
+         auto start=std::chrono::system_clock::now();
          while ( (key = (TKey*)nextkey())) {
 
             // Keep only the highest cycle number for each key for mergeable objects. They are stored
@@ -453,12 +455,13 @@ Bool_t TFileMerger::MergeRecursive(TDirectory *target, TList *sourcelist, Int_t 
                continue;
             }*/
             int l=0;
-            for(std::vector<TString>::iterator i=callNames.begin(); i<callNames.end(); i!=callNames.end(); ++i){ 
+            
+            for(auto i:callNames){ 
                //expected to be *slightly* faster as it only searches over those elements which have not already been found
                //does not try to search further once finding the element
                //iterator should be faster than operator or at() methods
                l++;
-               if(skip.size()>0 && skip.find(l)!=std::set::npos) continue;
+               if(!skip.empty() && skip.find(l)!=std::set::npos) continue;
                if(i->Find(key->GetName())){
                   oldkeyname=key->GetName();
                   skip.emplace(l);
@@ -466,7 +469,9 @@ Bool_t TFileMerger::MergeRecursive(TDirectory *target, TList *sourcelist, Int_t 
                   continue;
                }
             }
-
+            auto end=std::chrono::system_clock::now();
+            ofstream timing_file ("tfile.txt");
+            timing_file <<"Time to run=" <<end-start <<std::endl;
             TClass *cl = TClass::GetClass(key->GetClassName());
             if (!cl) {
                Info("MergeRecursive", "cannot indentify object type (%s), name: %s title: %s",
